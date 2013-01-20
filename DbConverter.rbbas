@@ -30,6 +30,7 @@ Protected Class DbConverter
 		  pgDb.SQLExecute("delete from categories")
 		  pgDb.SQLExecute("delete from variables")
 		  pgDb.SQLExecute("delete from preferences")
+		  pgDb.Commit
 		End Sub
 	#tag EndMethod
 
@@ -57,6 +58,85 @@ Protected Class DbConverter
 		    CheckDBForErrors()
 		    rs.MoveNext
 		  wend
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub ConvertComponentInventory()
+		  Dim rs as RecordSet
+		  Dim rec as DatabaseRecord
+		  
+		  rs = RealDb.SQLSelect("select componentid, componentname, image, inventoryquantity, primaryvendorid, primaryvendorcost, primaryvendorsku, alternatevendorid, alternatevendorcost, alternatevendorsku, manufacturer, manufacturersku from componentinventory")
+		  CheckDBForErrors()
+		  rs.MoveFirst
+		  
+		  while not rs.EOF
+		    rec = New DatabaseRecord()
+		    
+		    rec.IntegerColumn("componentid") = rs.Field("componentid").IntegerValue
+		    rec.Column("componentname") = rs.Field("componentname").StringValue
+		    rec.Column("image") = EncodeBase64(rs.Field("image").Value, 0)
+		    rec.CurrencyColumn("inventoryquantity") = rs.Field("inventoryquantity").CurrencyValue
+		    if rs.Field("primaryvendorid").IntegerValue <> 0 then
+		      rec.IntegerColumn("primaryvendorid") = rs.Field("primaryvendorid").IntegerValue
+		    end
+		    rec.CurrencyColumn("primaryvendorcost") = rs.Field("primaryvendorcost").CurrencyValue
+		    rec.Column("primaryvendorsku") = rs.Field("primaryvendorsku").StringValue
+		    if rs.Field("alternatevendorid").IntegerValue <> 0 then
+		      rec.IntegerColumn("alternatevendorid") = rs.Field("alternatevendorid").IntegerValue
+		    end if
+		    rec.CurrencyColumn("alternatevendorcost") = rs.Field("alternatevendorcost").CurrencyValue
+		    rec.Column("alternatevendorsku") = rs.Field("alternatevendorsku").StringValue
+		    rec.Column("manufacturer") = rs.Field("manufacturer").StringValue
+		    rec.Column("manufacturersku") = rs.Field("manufacturersku").StringValue
+		    
+		    PgDb.InsertRecord("componentinventory", rec)
+		    CheckDBForErrors()
+		    rs.MoveNext
+		  wend
+		  
+		  'reset sequence
+		  PgDb.SQLExecute("select setval('componentinventory_componentid_seq', (select max(componentid) from componentinventory))")
+		  CheckDBForErrors()
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub ConvertCustomers()
+		  Dim rs as RecordSet
+		  Dim rec as DatabaseRecord
+		  
+		  rs = RealDb.SQLSelect("select customerid, companyname, contact, webaddress ,phone, fax, billingaddress,billingcity, billingstate, billingpostalcode, shippingaddress, shippingcity, shippingstate, shippingpostalcode, notes from customers")
+		  CheckDBForErrors()
+		  rs.MoveFirst
+		  
+		  while not rs.EOF
+		    rec = New DatabaseRecord()
+		    
+		    rec.IntegerColumn("customerid") = rs.IdxField(1).IntegerValue
+		    rec.Column("companyname") = rs.IdxField(2).StringValue
+		    rec.Column("contact") = rs.IdxField(3).StringValue
+		    rec.Column("webaddress") = rs.IdxField(4).StringValue
+		    rec.Column("phone") = rs.IdxField(5).StringValue
+		    rec.Column("fax") = rs.IdxField(6).StringValue
+		    rec.Column("billingaddress") = rs.IdxField(7).StringValue
+		    rec.Column("billingcity") = rs.IdxField(8).StringValue
+		    rec.Column("billingstate") = rs.IdxField(9).StringValue
+		    rec.Column("billingpostalcode") = rs.IdxField(10).StringValue
+		    rec.Column("shippingaddress") = rs.IdxField(11).StringValue
+		    rec.Column("shippingcity") = rs.IdxField(12).StringValue
+		    rec.Column("shippingstate") = rs.IdxField(13).StringValue
+		    rec.Column("shippingpostalcode") =rs.IdxField(14).StringValue
+		    rec.Column("notes") = rs.IdxField(15).StringValue
+		    
+		    PgDb.InsertRecord("customers", rec)
+		    CheckDBForErrors()
+		    rs.MoveNext
+		  wend
+		  
+		  'reset sequence
+		  PgDb.SQLExecute("select setval('customers_customerid_seq', (select max(customerid) from customers))")
+		  CheckDBForErrors()
 		End Sub
 	#tag EndMethod
 
@@ -88,21 +168,20 @@ Protected Class DbConverter
 		    
 		    ConvertCategories
 		    ConvertVendors
-		    'ConvertCustomers
-		    '
-		    'ConvertComponentInventory
-		    'ConvertProducts
-		    '
-		    '
-		    'ConvertProductInventory
-		    'ConvertProductLineItems
-		    'ConvertPurchaseOrders
-		    'ConvertSalesOrders
-		    '
-		    'ConvertPurchaseOrderLineItems
-		    'ConvertSalesOrderLineItems
-		    '
-		    'ConvertPurchaseOrderScratchpad
+		    ConvertCustomers
+		    
+		    ConvertComponentInventory
+		    ConvertProducts
+		    
+		    ConvertProductLineItems
+		    ConvertPurchaseOrders
+		    ConvertSalesOrders
+		    
+		    ConvertProductInventory
+		    ConvertPurchaseOrderLineItems
+		    ConvertSalesOrderLineItems
+		    
+		    ConvertPurchaseOrderScratchpad
 		  catch err as RuntimeException
 		    return false
 		  end try
@@ -135,6 +214,240 @@ Protected Class DbConverter
 		    CheckDBForErrors()
 		    rs.MoveNext
 		  wend
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub ConvertProductInventory()
+		  Dim rs as RecordSet
+		  Dim salesRs as RecordSet
+		  Dim rec as DatabaseRecord
+		  
+		  rs = RealDb.SQLSelect("select productid, serialnumber, manufacturedate, salesorderid from productinventory")
+		  CheckDBForErrors()
+		  rs.MoveFirst
+		  
+		  while not rs.EOF
+		    rec = New DatabaseRecord()
+		    
+		    rec.IntegerColumn("productid") = rs.Field("productid").IntegerValue
+		    rec.IntegerColumn("serialnumber") = rs.Field("serialnumber").IntegerValue
+		    rec.DateColumn("manufacturedate") = rs.Field("manufacturedate").DateValue
+		    
+		    'check for sales order existing
+		    salesRs = PgDb.SQLSelect("select * from salesorders where salesorderid = " + Cstr(rs.Field("salesorderid").IntegerValue))
+		    if not salesRs.EOF then
+		      rec.IntegerColumn("salesorderid") = rs.Field("salesorderid").IntegerValue
+		    end if
+		    
+		    PgDb.InsertRecord("productinventory", rec)
+		    CheckDBForErrors()
+		    rs.MoveNext
+		  wend
+		  
+		  'reset sequence
+		  PgDb.SQLExecute("select setval('productinventory_serialnumber_seq', (select max(productid) from productinventory))")
+		  CheckDBForErrors()
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub ConvertProductLineItems()
+		  Dim rs as RecordSet
+		  Dim rec as DatabaseRecord
+		  
+		  rs = RealDb.SQLSelect("select productid,  componentid, componentquantity, issubassembly, subassemblyproductid   from productlineitems")
+		  CheckDBForErrors()
+		  rs.MoveFirst
+		  
+		  while not rs.EOF
+		    rec = New DatabaseRecord()
+		    
+		    rec.IntegerColumn("productid") = rs.Field("productid").IntegerValue
+		    rec.IntegerColumn("componentid") = rs.Field("componentid").IntegerValue
+		    rec.CurrencyColumn("componentquantity") = rs.Field("componentquantity").CurrencyValue
+		    if  rs.Field("issubassembly").BooleanValue then
+		      rec.BooleanColumn("issubassembly") = rs.Field("issubassembly").BooleanValue
+		      rec.IntegerColumn("subassemblyproductid") = rs.Field("subassemblyproductid").IntegerValue
+		    end if
+		    
+		    PgDb.InsertRecord("productlineitems", rec)
+		    CheckDBForErrors()
+		    rs.MoveNext
+		  wend
+		  
+		  'reset sequence
+		  PgDb.SQLExecute("select setval('productlineitems_id_seq', (select max(id) from productlineitems))")
+		  CheckDBForErrors()
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub ConvertProducts()
+		  Dim rs as RecordSet
+		  Dim rec as DatabaseRecord
+		  
+		  rs = RealDb.SQLSelect("select productid, productname, image, price from products")
+		  CheckDBForErrors()
+		  rs.MoveFirst
+		  
+		  while not rs.EOF
+		    rec = New DatabaseRecord()
+		    
+		    rec.IntegerColumn("productid") = rs.Field("productid").IntegerValue
+		    rec.Column("productname") = rs.Field("productname").StringValue
+		    rec.Column("image") = EncodeBase64(rs.Field("image").Value, 0)
+		    rec.CurrencyColumn("price") = rs.Field("price").CurrencyValue
+		    
+		    PgDb.InsertRecord("products", rec)
+		    CheckDBForErrors()
+		    rs.MoveNext
+		  wend
+		  
+		  'reset sequence
+		  PgDb.SQLExecute("select setval('products_productid_seq', (select max(productid) from products))")
+		  CheckDBForErrors()
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub ConvertPurchaseOrderLineItems()
+		  Dim rs as RecordSet
+		  Dim rec as DatabaseRecord
+		  
+		  rs = RealDb.SQLSelect("select purchaseorderid, componentid, quantity, datereceived, received from purchaseorderlineitems")
+		  CheckDBForErrors()
+		  rs.MoveFirst
+		  
+		  while not rs.EOF
+		    rec = New DatabaseRecord()
+		    
+		    rec.IntegerColumn("purchaseorderid") = rs.Field("purchaseorderid").IntegerValue
+		    rec.IntegerColumn("componentid") = rs.Field("componentid").IntegerValue
+		    rec.DateColumn("datereceived") = rs.Field("datereceived").DateValue
+		    rec.CurrencyColumn("quantity") = rs.Field("quantity").CurrencyValue
+		    rec.BooleanColumn("received") = rs.Field("received").BooleanValue
+		    
+		    PgDb.InsertRecord("purchaseorderlineitems", rec)
+		    CheckDBForErrors()
+		    rs.MoveNext
+		  wend
+		  
+		  'reset sequence
+		  PgDb.SQLExecute("select setval('purchaseorderlineitems_id_seq', (select max(id) from purchaseorderlineitems))")
+		  CheckDBForErrors()
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub ConvertPurchaseOrders()
+		  Dim rs as RecordSet
+		  Dim rec as DatabaseRecord
+		  
+		  rs = RealDb.SQLSelect("select purchaseorderid, vendorid, dateordered, shippingmethod, complete from purchaseorders")
+		  CheckDBForErrors()
+		  rs.MoveFirst
+		  
+		  while not rs.EOF
+		    rec = New DatabaseRecord()
+		    
+		    rec.IntegerColumn("purchaseorderid") = rs.Field("purchaseorderid").IntegerValue
+		    rec.IntegerColumn("vendorid") = rs.Field("vendorid").IntegerValue
+		    rec.DateColumn("dateordered") = rs.Field("dateordered").DateValue
+		    rec.Column("shippingmethod") = rs.Field("shippingmethod").StringValue
+		    rec.BooleanColumn("complete") = rs.Field("complete").BooleanValue
+		    
+		    PgDb.InsertRecord("purchaseorders", rec)
+		    CheckDBForErrors()
+		    rs.MoveNext
+		  wend
+		  
+		  'reset sequence
+		  PgDb.SQLExecute("select setval('purchaseorders_purchaseorderid_seq', (select max(purchaseorderid) from purchaseorders))")
+		  CheckDBForErrors()
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub ConvertPurchaseOrderScratchpad()
+		  Dim rs as RecordSet
+		  Dim rec as DatabaseRecord
+		  
+		  rs = RealDb.SQLSelect("select componentid, componentquantity, primaryvendorid, alternatevendorid from purchaseorderscratchpad")
+		  CheckDBForErrors()
+		  rs.MoveFirst
+		  
+		  while not rs.EOF
+		    rec = New DatabaseRecord()
+		    
+		    rec.IntegerColumn("componentid") = rs.Field("componentid").IntegerValue
+		    rec.IntegerColumn("primaryvendorid") = rs.Field("primaryvendorid").IntegerValue
+		    rec.IntegerColumn("alternatevendorid") = rs.Field("alternatevendorid").IntegerValue
+		    rec.CurrencyColumn("componentquantity") = rs.Field("componentquantity").CurrencyValue
+		    
+		    PgDb.InsertRecord("purchaseorderscratchpad", rec)
+		    CheckDBForErrors()
+		    rs.MoveNext
+		  wend
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub ConvertSalesOrderLineItems()
+		  Dim rs as RecordSet
+		  Dim rec as DatabaseRecord
+		  
+		  rs = RealDb.SQLSelect("select salesorderid, productid, quantity, shippeddate, shipped from salesorderlineitems")
+		  CheckDBForErrors()
+		  rs.MoveFirst
+		  
+		  while not rs.EOF
+		    rec = New DatabaseRecord()
+		    
+		    rec.IntegerColumn("salesorderid") = rs.Field("salesorderid").IntegerValue
+		    rec.IntegerColumn("productid") = rs.Field("productid").IntegerValue
+		    rec.DateColumn("shippeddate") = rs.Field("shippeddate").DateValue
+		    rec.CurrencyColumn("quantity") = rs.Field("quantity").CurrencyValue
+		    rec.BooleanColumn("shipped") = rs.Field("shipped").BooleanValue
+		    
+		    PgDb.InsertRecord("salesorderlineitems", rec)
+		    CheckDBForErrors()
+		    rs.MoveNext
+		  wend
+		  
+		  'reset sequence
+		  PgDb.SQLExecute("select setval('salesorderlineitems_id_seq', (select max(id) from salesorderlineitems))")
+		  CheckDBForErrors()
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub ConvertSalesOrders()
+		  Dim rs as RecordSet
+		  Dim rec as DatabaseRecord
+		  
+		  rs = RealDb.SQLSelect("select salesorderid, customerid, dateordered, shippingmethod, shipperaccount, complete from salesorders")
+		  CheckDBForErrors()
+		  rs.MoveFirst
+		  
+		  while not rs.EOF
+		    rec = New DatabaseRecord()
+		    
+		    rec.IntegerColumn("salesorderid") = rs.Field("salesorderid").IntegerValue
+		    rec.IntegerColumn("customerid") = rs.Field("customerid").IntegerValue
+		    rec.DateColumn("dateordered") = rs.Field("dateordered").DateValue
+		    rec.Column("shippingmethod") = rs.Field("shippingmethod").StringValue
+		    rec.Column("shipperaccount") = rs.Field("shipperaccount").StringValue
+		    rec.BooleanColumn("complete") = rs.Field("complete").BooleanValue
+		    
+		    PgDb.InsertRecord("salesorders", rec)
+		    CheckDBForErrors()
+		    rs.MoveNext
+		  wend
+		  
+		  'reset sequence
+		  PgDb.SQLExecute("select setval('salesorders_salesorderid_seq', (select max(salesorderid) from salesorders))")
+		  CheckDBForErrors()
 		End Sub
 	#tag EndMethod
 
