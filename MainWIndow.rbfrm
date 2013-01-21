@@ -139,12 +139,12 @@ Begin Window MainWIndow
       Caption         =   "Transfer To Postgres"
       Default         =   ""
       Enabled         =   True
-      Height          =   22
+      Height          =   24
       HelpTag         =   ""
       Index           =   -2147483648
       InitialParent   =   ""
       Italic          =   ""
-      Left            =   453
+      Left            =   430
       LockBottom      =   True
       LockedInPosition=   False
       LockLeft        =   False
@@ -157,10 +157,10 @@ Begin Window MainWIndow
       TextFont        =   "System"
       TextSize        =   0
       TextUnit        =   0
-      Top             =   487
+      Top             =   485
       Underline       =   ""
       Visible         =   True
-      Width           =   127
+      Width           =   150
    End
    Begin Label Label2
       AutoDeactivate  =   True
