@@ -269,6 +269,8 @@ Protected Class DbConverter
 		    if  rs.Field("issubassembly").BooleanValue then
 		      rec.BooleanColumn("issubassembly") = rs.Field("issubassembly").BooleanValue
 		      rec.IntegerColumn("subassemblyproductid") = rs.Field("subassemblyproductid").IntegerValue
+		    else
+		      rec.BooleanColumn("issubassembly") = rs.Field("issubassembly").BooleanValue
 		    end if
 		    
 		    PgDb.InsertRecord("productlineitems", rec)
@@ -566,16 +568,19 @@ Protected Class DbConverter
 			Name="pgDatabaseName"
 			Group="Behavior"
 			Type="String"
+			EditorType="MultiLineEditor"
 		#tag EndViewProperty
 		#tag ViewProperty
 			Name="pgHost"
 			Group="Behavior"
 			Type="String"
+			EditorType="MultiLineEditor"
 		#tag EndViewProperty
 		#tag ViewProperty
 			Name="pgPassword"
 			Group="Behavior"
 			Type="String"
+			EditorType="MultiLineEditor"
 		#tag EndViewProperty
 		#tag ViewProperty
 			Name="pgPort"
@@ -586,11 +591,13 @@ Protected Class DbConverter
 			Name="pgUser"
 			Group="Behavior"
 			Type="String"
+			EditorType="MultiLineEditor"
 		#tag EndViewProperty
 		#tag ViewProperty
 			Name="RealDbFilePath"
 			Group="Behavior"
 			Type="String"
+			EditorType="MultiLineEditor"
 		#tag EndViewProperty
 		#tag ViewProperty
 			Name="Super"
